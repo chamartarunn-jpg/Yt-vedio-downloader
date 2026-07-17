@@ -47,7 +47,7 @@
 <body>
     <header>
         <div class="logo">VD4K</div>
-        <div class="stats-badge">● 4,892,105 Downloads Today</div>
+        <div class="stats-badge">● 4,89290,15 Downloads </div>
     </header>
     <div class="hero">
         <h1>Online YouTube <span>4K Downloader</span></h1>
@@ -55,6 +55,7 @@
         <div class="search-container">
             <input type="text" id="videoUrl" placeholder="Paste video link here e.g., https://youtube.com..." required>
             <button id="fetchBtn" onclick="fetchVideoInfo()">Start</button>
+
         </div>
         <div class="loader" id="loader"></div>
         <div id="status-msg"></div>
@@ -139,7 +140,7 @@
                 if (data.error) {
                     statusMsg.innerText = "त्रुटि: " + data.error;
                     return;
-                }
+                })
 
                 document.getElementById('vidThumb').src = data.thumbnail;
                 document.getElementById('vidTitle').innerText = data.title;
