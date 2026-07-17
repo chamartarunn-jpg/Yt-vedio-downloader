@@ -10,20 +10,23 @@ if not os.path.exists(DOWNLOAD_FOLDER):
 
 @app.route('/')
 def home():
-    # यह सीधे आपके templates फोल्डर के अंदर से index.html को उठाएगा
     return render_template('index.html')
 
 @app.route('/fetch-info', methods=['POST'])
 def fetch_info():
-    video_url = request.form.get('url')
-    
-    # यूट्यूब शॉर्ट्स और नॉर्मल वीडियो दोनों को फ़ास्ट प्रोसेस करने की सेटिंग्स
+    # फ्रंटएंड अगर JSON भेज रहा है तो request.json काम करेगा, नहीं तो request.form
+    data = request.get_json(silent=True) or request.form
+    video_url = data.get('url')
+
+    if not video_url:
+        return jsonify({'error': 'URL is required'}), 400
+
     ydl_opts = {
         'skip_download': True,
         'quiet': True,
-        'no_warnings': True,
-        'extract_flat': False
+        'no_warnings': True
     }
+    
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
@@ -32,7 +35,6 @@ def fetch_info():
             
             for f in info.get('formats', []):
                 height = f.get('height')
-                # सिर्फ वीडियो वाली स्ट्रीम्स को फ़िल्टर करना
                 if height and height >= 360 and f.get('vcodec') != 'none':
                     res_label = f"{height}p"
                     if height == 1080: res_label = "1080p Full HD"
@@ -43,32 +45,36 @@ def fetch_info():
                         seen_resolutions.add(res_label)
                         formats.append({'format_id': f.get('format_id'), 'quality': res_label})
             
-            # क्वालिटी को हाई से लो के क्रम में सेट करना
             formats.sort(key=lambda x: int(''.join(filter(str.isdigit, x['quality']))), reverse=True)
             return jsonify({'title': info.get('title'), 'thumbnail': info.get('thumbnail'), 'formats': formats})
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/download', methods=['POST'])
 def download_video():
-    video_url = request.form.get('url')
-    format_id = request.form.get('format_id')
+    data = request.get_json(silent=True) or request.form
+    video_url = data.get('url')
+    format_id = data.get('format_id')
     
-    # बिना री-एन्कोडिंग के सीधे स्ट्रीम कॉपी करने का सुपरफ़ास्ट जुगाड़
+    if not video_url or not format_id:
+        return jsonify({'error': 'Missing parameters'}), 400
+    
     ydl_opts = {
-        'format': f'{format_id}+bestaudio/best',
+        # ध्यान दें: Render पर बिना FFmpeg के मर्ज फेल होगा, इसलिए सिंगल फाइल डाउनलोड के लिए 'format_id' रखें
+        'format': f'{format_id}', 
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        'merge_output_format': 'mp4',
-        'postprocessor_args': ['-c:v', 'copy', '-c:a', 'copy'],
-        'quiet': True
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
             filename = ydl.prepare_filename(info)
-            if not filename.endswith('.mp4'):
-                filename = os.path.splitext(filename) + '.mp4'
             just_filename = os.path.basename(filename)
+            return send_from_directory(DOWNLOAD_FOLDER, just_filename, as_attachment=True)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
             return send_from_directory(DOWNLOAD_FOLDER, just_filename, as_attachment=True)
     except Exception as e:
         return f"Download Error: {str(e)}"
