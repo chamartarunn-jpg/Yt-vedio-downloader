@@ -170,6 +170,15 @@
 
     <!-- कार्यात्मक जावास्क्रिप्ट तर्क -->
     <script>
+    // यह इवेंट इंश्योर करेगा कि बटन और इनपुट बॉक्स लोड होने के बाद ही जावास्क्रिप्ट एक्टिवेट हो
+    document.addEventListener("DOMContentLoaded", function() {
+        
+        // बटन को जावास्क्रिप्ट के जरिए फंक्शन से लिंक करना
+        const fetchBtn = document.getElementById('fetchBtn');
+        if (fetchBtn) {
+            fetchBtn.addEventListener('click', fetchVideoInfo);
+        }
+
         function fetchVideoInfo() {
             const urlInput = document.getElementById('videoUrl').value.trim();
             const statusMsg = document.getElementById('status-msg');
@@ -182,17 +191,24 @@
                 return;
             }
 
+            // लोडिंग स्टेट एक्टिवेट करना
             statusMsg.innerText = "";
             loader.style.display = "block";
             videoBox.style.display = "none";
             qualityBox.innerHTML = "";
 
+            // बैकएंड सर्वर को डेटा पोस्ट करना
             fetch('/fetch-info', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: urlInput })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("सर्वर से गलत रिस्पॉन्स मिला।");
+                }
+                return response.json();
+            })
             .then(data => {
                 loader.style.display = "none";
                 if (data.error) {
@@ -215,12 +231,46 @@
             })
             .catch(err => {
                 loader.style.display = "none";
-                statusMsg.innerText = "सर्वर से संपर्क विफल रहा।";
+                statusMsg.innerText = "सर्वर से संपर्क विफल रहा या बैकएंड क्रैश हो गया।";
                 console.error(err);
             });
         }
 
-    </script>
+        function triggerDownload(url, formatId, buttonElement) {
+            const originalText = buttonElement.innerHTML;
+            buttonElement.innerHTML = "Downloading... ⏳";
+            buttonElement.style.pointerEvents = "none";
+
+            fetch('/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url, format_id: formatId })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("डाउनलोड फेल हो गया");
+                return response.blob();
+            })
+            .then(blob => {
+                const dlUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = dlUrl;
+                a.download = "video.mp4";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                
+                buttonElement.innerHTML = originalText;
+                buttonElement.style.pointerEvents = "auto";
+            })
+            .catch(err => {
+                buttonElement.innerHTML = "Error ❌";
+                buttonElement.style.pointerEvents = "auto";
+                alert("डाउनलोड करने में समस्या आई।");
+            });
+        }
+    });
+</script>
+
     <footer>© 2026 VD4K Web Core Service. Created by Tarun Chamar .</footer>
 
 
